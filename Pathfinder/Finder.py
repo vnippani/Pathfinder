@@ -1,6 +1,7 @@
 import queue
 import math
 import pygame
+import sys
 
 #set pygame screen settings
 TOTALWIDTH = 800
@@ -14,7 +15,7 @@ pygame.font.init()
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
-BLUE = (0, 255, 0)
+BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -23,7 +24,7 @@ ORANGE = (255, 165 ,0)
 GREY = (128, 128, 128)
 TURQUOISE = (64, 224, 208)
 
-size = 25
+size = 40
 
 SPOTWIDTH = WIDTH / size
 
@@ -33,62 +34,7 @@ SPOTWIDTH = WIDTH / size
 weight1 = 1 
 weight2 = 2
 
-class Spot(object):
-	
-	def __init__(self,row,col,width):
-		self.row = row
-		self.col = col
-		self.x = col * SPOTWIDTH
-		self.y = row * SPOTWIDTH
-		self.color = WHITE
-		self.width = width
-		self.minDist = 99999999999 #used in Dijkstras
-		self.pi = None #used to indicate parent in BFS/DFS/SPT
-		self.neighbors = []
-		self.currentIndex = -1
-		
-	def get_pos(self):
-		return self.row, self.col
-	
-	def is_visited(self):
-		return self.color == RED 
-	
-	def is_open(self):
-		return self.color == GREEN
-	
-	def is_Wall(self):
-		return self.color == BLACK
-	
-	def is_end(self):
-		return self.color == TURQUOISE
-	
-	
- 
-	def reset(self):
-		self.color = WHITE
-		
-	def make_start(self):
-		self.color = ORANGE
 
-	def make_closed(self):
-		self.color = RED
-
-	def make_open(self):
-		self.color = GREEN
-
-	def make_barrier(self):
-		self.color = BLACK
-
-	def make_end(self):
-		self.color = TURQUOISE
-
-	def make_path(self):
-		self.color = PURPLE
-
-	def draw(self, win):
-		pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
-
-	
 class priorityQueue(object):
 	#create an empty minHeap
 	def __init__(self):
@@ -297,7 +243,7 @@ class Coord(object):
 	def make_closed(self):
 		self.color = RED
 
-	def make_open(self):
+	def make_visited(self):
 		self.color = GREEN
 
 	def make_barrier(self):
@@ -307,7 +253,10 @@ class Coord(object):
 		self.color = TURQUOISE
 
 	def make_path(self):
-		self.color = PURPLE
+		self.color = RED
+  
+	def make_finalPath(self):
+		self.color = BLUE
 
 	def draw(self, win):
 		pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
@@ -315,20 +264,13 @@ class Coord(object):
 	
 
 def main():
+	sys.setrecursionlimit(size*size + 10)
 	setting = 0 #determines what occurs when the user clicks the grid
 	coords = initializeGrid()
 	
 	#testing code
 	walls = {}
 	
-	
-	BFS(coords,324,1,walls)           
-	print()
-	DFS(coords,324,1,walls)
-	
-	print()
-		
-	Dijkstra(coords,324,1,walls)    
   
 	run = True #use to exit the game
  
@@ -349,12 +291,25 @@ def main():
 	b = Button(630,250,WHITE,100,50,text,2)
 	buttons.append(b)  
 	
+	text = gameFont.render('Dijkstra',True,RED)
+	b = Button(630,350,WHITE,100,50,text,2)
+	buttons.append(b) 	
+ 
+	text = gameFont.render('Clear',True,RED)
+	b = Button(630,450,WHITE,100,50,text,2)
+	buttons.append(b)
+  	
 	#set initial start and end
 	start = 0
 	end = 1
 	coords[start].make_start()
 	coords[end].make_end()
  
+	BFSRunning = False
+	DFSRunning = False
+	DijkstraRunning = False
+ 
+	
 	while run:
 		pygame.time.delay(10)
 		
@@ -365,7 +320,9 @@ def main():
 
 			if event.type == pygame.QUIT: #if the X is pressed
 				run = False
-				
+    
+
+    
 		if pos != None:
 			print(pos)
 			if(pos[0] >= 600):
@@ -376,47 +333,83 @@ def main():
 						break	#due to placement of buttons, if one is clicked, others can't be
 				
 				if buttonClicked == 0:
-					pass #run BFS
-				if buttonClicked == 1:
-					pass #run DFS
-				if buttonClicked == 2:
+					BFS(coords,start,end,walls,buttons)
+
+				elif buttonClicked == 1:
+					DFS(coords,start,end,walls,buttons)
+	
+				elif buttonClicked == 2:
 					setting = (setting + 1) % 4
-	   			
+				elif buttonClicked == 3:
+					pass
+				elif buttonClicked == 4:
+					resetStartEnd = resetGrid(coords,walls)
+					start = resetStartEnd[0]
+					end = resetStartEnd[1]
 				#iterate through all buttons to see if they were pressed
 			else:
 				row = pos[1] // SPOTWIDTH #the y coordinate
 				col = pos[0] // SPOTWIDTH #the x coordinate
-				
+				row = int(row)
+				col = int(col)
 				if setting == 0: #creates barriers
 					
-					if not coords[int(size*row + col)].is_end() and not coords[int(size*row + col)].is_start():
-						currentColor = coords[int(size*row + col)].getColor()
+					if not coords[size*row + col].is_end() and not coords[size*row + col].is_start():
+						currentColor = coords[size*row + col].getColor()
 						if currentColor == WHITE:
-							coords[int(size*row + col)].make_barrier()	
-							walls[int(size*row + col)] = 0
+							coords[size*row + col].make_barrier()	
+							walls[size*row + col] = 0
 						else:
-							coords[int(size*row + col)].reset()
-							del walls[int(size*row + col)]
-      
+							coords[size*row + col].reset()
+							del walls[size*row + col]
 
+				elif setting == 1: #set new start
+					if size*row + col not in walls:
+						coords[start].reset()
+						start = size*row+col		
+						coords[start].make_start()
+
+				elif setting == 2: #set new end
+					if size*row + col not in walls:
+						coords[end].reset()
+						end = size*row+col		
+						coords[end].make_end()
+				
 					
+
   		
-		WIN.fill((0,0,0)) 
-		displayWorld(coords)
-		displayButtons(buttons) 
-		pygame.display.update()
+		
+		displayWorld(coords,buttons)
 
   		
 
-def displayWorld(coords):
+def displayCoords(coords):
 	for row in range(0,size):
 		for col in range(0,size):
 			coords[size*row+col].draw(WIN)
 	
 
+def resetGrid(coords,walls):
+    walls.clear()
+    for n in coords:
+        n.reset()
+    start = 0
+    end = 1
+    coords[0].make_start()
+    coords[1].make_end()
+    return [start, end]
+
 def displayButtons(buttons):
 	for button in buttons:
 		button.draw(WIN)			
+
+
+def displayWorld(coords,buttons):
+	WIN.fill((0,0,0)) 
+	displayCoords(coords)
+	displayButtons(buttons) 
+	pygame.display.update()
+    
 		   
 #BACK END AND PATHFINDING FUNCTIONS    
 def initializeGrid():
@@ -459,14 +452,20 @@ def initializeGrid():
 				c.neighbors.append(coords[j])
 	return coords
 	
-def outputGrid(result,start,end,walls):
+def outputGrid(result,start,end,walls,coords,buttons):
 	if result == None:
 		print("err, no valid path")
 	else:
 		path = {}
 		while result != None: #starting from end node, add path to hash map. 
 			path[result.id] = 0
+			
+			result.make_finalPath()
+			result.draw(WIN)
+			pygame.time.delay(2)
+			pygame.display.update()
 			result = result.pi
+			
 		
 		#output the grid using print statements
 		for row in range(0,size):
@@ -485,13 +484,14 @@ def outputGrid(result,start,end,walls):
 			
 			print()
 
-def BFS(coords,start,end,walls):
+def BFS(coords,start,end,walls,buttons):
 	"""
 	coords: grid of Coord objects
 	start: id (or size*row + col) of start space
 	end: id of end space
 	"""
-	
+		
+ 
 	if start < 0 or start >= len(coords):
 		return
 	if end < 0 or end >= len(coords):
@@ -508,21 +508,31 @@ def BFS(coords,start,end,walls):
 	
 	#BFS Algorithm
 	while not q.empty():
+		pygame.time.delay(2)
 		currentNode = q.get()		
 
 		if currentNode.id == end:
 			result = currentNode
 			break
 		
+		if currentNode.id != start:
+			currentNode.make_path()
+			currentNode.draw(WIN)
+  
 		for n in currentNode.neighbors:
 			if n.id not in visited and n.id not in walls:
 				n.pi = currentNode
 				visited[n.id] = 0
 				q.put(n)
+				if n.id != end:
+					n.make_visited()
+					n.draw(WIN)
+    
+		pygame.display.update()
+  
+	outputGrid(result,start,end,walls,coords,buttons)             
 	
-	outputGrid(result,start,end,walls)             
-	
-def DFS(coords,start,end,walls):
+def DFS(coords,start,end,walls,buttons):
 	"""
 	coords: grid of Coord objects
 	start: id (or size*row + col) of start space
@@ -534,11 +544,11 @@ def DFS(coords,start,end,walls):
 		return 
 	
 	visited = {}
-	result = DFSHelper(coords,start,end,visited,walls)
+	result = DFSHelper(coords,start,start,end,visited,walls,buttons)
 	
-	outputGrid(result,start,end,walls)    
+	outputGrid(result,start,end,walls,coords,buttons)    
 	  
-def DFSHelper(coords,current,end,visited,walls):
+def DFSHelper(coords,start,current,end,visited,walls,buttons):
 	"""
 	coords: grid of Coord objects
 	current: id (or size*row + col) of current space
@@ -547,18 +557,28 @@ def DFSHelper(coords,current,end,visited,walls):
 	"""
 	visited[current] = 0
 	
+	
 	if current == end:
 		return coords[current]
-		
-	currentSpace = coords[current] #get the space corresponding to id current
 	
+	
+	currentSpace = coords[current] #get the space corresponding to id current
+ 
+	if currentSpace.id != start:
+			currentSpace.make_path()
+			currentSpace.draw(WIN)
+	
+	pygame.display.update()
+ 
 	for n in currentSpace.neighbors:
 		if n.id not in visited and n.id not in walls:
 			n.pi = currentSpace
-			newPath = DFSHelper(coords,n.id,end,visited,walls)
+			newPath = DFSHelper(coords,start,n.id,end,visited,walls,buttons)
 			if newPath != None:
 				return newPath
-			
+	
+	
+ 		
 	return None
 
 def Dijkstra(coords,start,end,walls):
