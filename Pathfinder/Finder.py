@@ -28,12 +28,14 @@ size = 40
 
 SPOTWIDTH = WIDTH / size
 
-
+gameFont = pygame.font.SysFont('Corbel',20) 
+tileFont = pygame.font.SysFont('Corbel',10) 
 
 #by default, all spaces have an edge weight of 1 (abs(2-1) == abs(1-2)) 
 weight1 = 1 
 weight2 = 2
 
+setting = 3 #determines what occurs when the user clicks the grid
 
 class priorityQueue(object):
 	#create an empty minHeap
@@ -211,11 +213,25 @@ class Coord(object):
 		self.minDist = 99999999999 #used in Dijkstras
 		self.pi = None #used to indicate parent in BFS/DFS/SPT
 		self.neighbors = []
-		
+		self.text = tileFont.render(str(self.weight),True,BLACK)
+  
+	def changeWeight(self):
+		self.weight = (self.weight + 1) % 10
+		if self.weight == 0:
+			self.weight = 1
+		self.text = tileFont.render(str(self.weight),True,BLACK)
+
+	def resetWeight(self,weightGiven):
+		self.weight = weightGiven
+		self.text = tileFont.render(str(self.weight),True,BLACK)
+  
 	def reset(self):
 		self.minDist = 99999999999
 		self.pi = None
+	
+	def resetColor(self):
 		self.color = WHITE
+		
   	
 	def getColor(self):
 		return self.color
@@ -261,11 +277,17 @@ class Coord(object):
 	def draw(self, win):
 		pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
 
+  
+	def displayGridNum(self,win,sett):
 	
+		if sett == 3:
+			win.blit(self.text , (self.x + self.width /2.5,self.y + self.width / 2.5)) 
+
 
 def main():
 	sys.setrecursionlimit(size*size + 10)
-	setting = 0 #determines what occurs when the user clicks the grid
+	global setting
+	setting = 0
 	coords = initializeGrid()
 	
 	#testing code
@@ -274,7 +296,7 @@ def main():
   
 	run = True #use to exit the game
  
-	gameFont = pygame.font.SysFont('Corbel',20) 
+	
 	text = gameFont.render('quit',True,RED)
  	
 	buttons = []
@@ -311,11 +333,12 @@ def main():
  
 	
 	while run:
+
 		pygame.time.delay(10)
 		
 		pos = None
 		for event in pygame.event.get(): 
-			if event.type == pygame.MOUSEBUTTONDOWN:
+			if pygame.mouse.get_pressed()[0]:
 				pos = pygame.mouse.get_pos()
 
 			if event.type == pygame.QUIT: #if the X is pressed
@@ -324,7 +347,7 @@ def main():
 
     
 		if pos != None:
-			print(pos)
+			print(setting)
 			if(pos[0] >= 600):
 				buttonClicked = -1
 				for i in range(0, len(buttons)):
@@ -332,21 +355,24 @@ def main():
 						buttonClicked = i 
 						break	#due to placement of buttons, if one is clicked, others can't be
 				
-				if buttonClicked == 0:
+    			#iterate through all buttons to see if they were pressed
+				if buttonClicked == 0: #run BFS
 					BFS(coords,start,end,walls,buttons)
 
-				elif buttonClicked == 1:
+				elif buttonClicked == 1: #run DFS
 					DFS(coords,start,end,walls,buttons)
 	
-				elif buttonClicked == 2:
+				elif buttonClicked == 2: #change setting
 					setting = (setting + 1) % 4
-				elif buttonClicked == 3:
-					pass
-				elif buttonClicked == 4:
+				elif buttonClicked == 3: #run Dijkstras Algorithm
+					Dijkstra(coords,start,end,walls,buttons)
+				elif buttonClicked == 4: #clear the entire grid, reset start and end pos
 					resetStartEnd = resetGrid(coords,walls)
 					start = resetStartEnd[0]
 					end = resetStartEnd[1]
-				#iterate through all buttons to see if they were pressed
+     
+				pygame.time.delay(190) #extra delay to prevent multiple rapid clicks
+				
 			else:
 				row = pos[1] // SPOTWIDTH #the y coordinate
 				col = pos[0] // SPOTWIDTH #the x coordinate
@@ -359,23 +385,22 @@ def main():
 						if currentColor == WHITE:
 							coords[size*row + col].make_barrier()	
 							walls[size*row + col] = 0
-						else:
-							coords[size*row + col].reset()
-							del walls[size*row + col]
 
 				elif setting == 1: #set new start
 					if size*row + col not in walls:
-						coords[start].reset()
+						coords[start].resetColor()
 						start = size*row+col		
 						coords[start].make_start()
 
 				elif setting == 2: #set new end
 					if size*row + col not in walls:
-						coords[end].reset()
+						coords[end].resetColor()
 						end = size*row+col		
 						coords[end].make_end()
 				
-					
+				elif setting == 3:
+					coords[size*row + col].changeWeight()
+					pygame.time.delay(190)
 
   		
 		
@@ -387,17 +412,38 @@ def displayCoords(coords):
 	for row in range(0,size):
 		for col in range(0,size):
 			coords[size*row+col].draw(WIN)
+			coords[size*row+col].displayGridNum(WIN,setting)
+			
 	
 
 def resetGrid(coords,walls):
-    walls.clear()
-    for n in coords:
-        n.reset()
-    start = 0
-    end = 1
-    coords[0].make_start()
-    coords[1].make_end()
-    return [start, end]
+	walls.clear()
+	weight = weight1
+	for row in range(0,size):
+		for col in range(0,size):
+			if weight == weight1:
+				weight = weight2
+			else:
+				weight = weight1
+			
+			c = Coord(row,col,weight)
+			coords.append(c)
+
+			coords[size*row + col].reset()
+			coords[size*row + col].resetColor()
+			coords[size*row + col].resetWeight(weight)
+   
+		if (size % 2) == 0:
+			if weight == weight1:
+				weight = weight2
+			else:
+				weight = weight1  
+
+	start = 0
+	end = 1
+	coords[0].make_start()
+	coords[1].make_end()
+	return [start, end]
 
 def displayButtons(buttons):
 	for button in buttons:
@@ -456,33 +502,17 @@ def outputGrid(result,start,end,walls,coords,buttons):
 	if result == None:
 		print("err, no valid path")
 	else:
-		path = {}
 		while result != None: #starting from end node, add path to hash map. 
-			path[result.id] = 0
-			
-			result.make_finalPath()
+			if result.id != start and result.id != end:
+				result.make_finalPath()
 			result.draw(WIN)
 			pygame.time.delay(2)
 			pygame.display.update()
-			result = result.pi
+   
+			result = result.pi #move to next space in path
 			
 		
-		#output the grid using print statements
-		for row in range(0,size):
-			for col in range(0,size):
-				i = size * row + col
-				if i == start:
-					print("s",end='')
-				elif i == end:
-					print("e",end='')
-				elif i in path:
-					print("*",end='')
-				elif i in walls:
-					print("-",end='')
-				else:
-					print(".",end='')              
-			
-			print()
+		
 
 def BFS(coords,start,end,walls,buttons):
 	"""
@@ -508,7 +538,7 @@ def BFS(coords,start,end,walls,buttons):
 	
 	#BFS Algorithm
 	while not q.empty():
-		pygame.time.delay(2)
+		pygame.time.delay(3)
 		currentNode = q.get()		
 
 		if currentNode.id == end:
@@ -557,6 +587,7 @@ def DFSHelper(coords,start,current,end,visited,walls,buttons):
 	"""
 	visited[current] = 0
 	
+	pygame.time.delay(2)
 	
 	if current == end:
 		return coords[current]
@@ -565,8 +596,8 @@ def DFSHelper(coords,start,current,end,visited,walls,buttons):
 	currentSpace = coords[current] #get the space corresponding to id current
  
 	if currentSpace.id != start:
-			currentSpace.make_path()
-			currentSpace.draw(WIN)
+		currentSpace.make_path()
+		currentSpace.draw(WIN)
 	
 	pygame.display.update()
  
@@ -581,24 +612,39 @@ def DFSHelper(coords,start,current,end,visited,walls,buttons):
  		
 	return None
 
-def Dijkstra(coords,start,end,walls):
+def Dijkstra(coords,start,end,walls,buttons):
 	for n in coords:
 		n.reset()
+		if n.id not in walls and n.id != start and n.id != end:
+			n.make_visited() #all nodes are in the queue
+			n.draw(WIN)
+			pygame.display.update()
+		pygame.time.delay(1)
+	
 	coords[start].minDist = 0
 	q = priorityQueue()
 	q.buildHeap(coords,walls)
 	
+	
 	while q.getSize() != 1:
+
 		v = q.extractMin()
+
+		if v.id != start and v.id != end:
+			v.make_path()
+			v.draw(WIN)
+	
 		neighbors = v.neighbors
 		
 		for u in neighbors:
 			if u not in walls:
 				btwWeight = abs(v.weight - u.weight)
 				relax(v,u,btwWeight,q)
-	
+
+		pygame.display.update()
+  
 	result = coords[end]
-	outputGrid(result,start,end,walls)    
+	outputGrid(result,start,end,walls,coords,buttons)    
 	   
 #used in Dijkstras Algorithm   
 def relax(v,u,btwWeight,q):
